@@ -7,18 +7,24 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.action.admin.cluster.health.*;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.*;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.*;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.*;
 
 import java.io.IOException;
+import java.util.HashSet;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 
 public class DefaultSchemaProvider implements SchemaProvider {
     public static String TYPE = "ty";
     String indexName;
     private Client client;
+    private HashSet<String> labelsWithDefaultTemplate = new HashSet<>();
 
     @Override
     public void init(Client client, Configuration configuration) throws IOException {
@@ -64,6 +70,15 @@ public class DefaultSchemaProvider implements SchemaProvider {
 
     @Override
     public AddElementResult addElement(String label, Object idValue, ElasticElement.Type type, Object[] keyValues) {
+        if(!labelsWithDefaultTemplate.contains(label)) {
+            labelsWithDefaultTemplate.add(label);
+            try {
+                createDefaultTemplate(label,indexName);
+            } catch (IOException e) {
+                System.out.println("creating default template for type" + label + " failed reason:");
+                e.printStackTrace();
+            }
+        }
         Object[] all = ArrayUtils.addAll(keyValues, TYPE, type.toString());
         return new AddElementResult() {
             @Override
@@ -112,5 +127,33 @@ public class DefaultSchemaProvider implements SchemaProvider {
 
     }
 
+    private void createDefaultTemplate(String documentType,String indexName ) throws IOException {
+
+        final XContentBuilder mappingBuilder =
+                    jsonBuilder().startObject()
+                                .startObject(documentType)
+                                    .startObject("_all").field("enabled", false).endObject()
+                                    .startArray("dynamic_templates")
+                                        .startObject()
+                                            .startObject("default_template")
+                                                .field("match", "*")
+                                                .startObject("mapping")
+                                                    .field("type", "{dynamic_type}")
+                                                    .field("index", "not_analyzed")
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                    .endArray()
+                                .endObject()
+                            .endObject();
+
+        client.admin().indices()
+                .preparePutMapping(indexName)
+                .setType(documentType)
+                .setSource(mappingBuilder)
+                .execute().actionGet();
+
+
+    }
 
 }
