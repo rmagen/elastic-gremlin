@@ -1,7 +1,9 @@
 package com.tinkerpop.gremlin.elastic.process.graph.traversal.strategy;
 
+import com.spatial4j.core.io.WktShapeParser;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.SpatialRelation;
+import com.vividsolutions.jts.io.WKTReader;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -55,8 +57,8 @@ public enum Geo implements BiPredicate {
         Shape s1 = null;
         Shape s2 = null;
         try {
-            s1 = convertObjectToShapeIfPossible(o);
-            s2 = convertObjectToShapeIfPossible(o2);
+            s1 = convertObjectToShape(o);
+            s2 = convertObjectToShape(o2);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -65,7 +67,7 @@ public enum Geo implements BiPredicate {
         return testFunc.apply(s1,s2);
     }
 
-    private Shape convertObjectToShapeIfPossible(Object o) throws IOException {
+    public static Shape convertObjectToShape(Object o) throws IOException {
 
         if(o instanceof Shape) return (Shape) o;
         String geoShapeStringValue = null;
@@ -76,6 +78,8 @@ public enum Geo implements BiPredicate {
         }
         else if (o instanceof String){
             geoShapeStringValue = (String) o;
+
+
         }
         Preconditions.checkNotNull(geoShapeStringValue);
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoShapeStringValue);

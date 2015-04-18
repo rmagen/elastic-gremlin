@@ -4,6 +4,7 @@ import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.impl.PointImpl;
 import com.tinkerpop.gremlin.elastic.elasticservice.*;
+import com.tinkerpop.gremlin.elastic.process.graph.traversal.spatialdsl.SpatialTraversal;
 import com.tinkerpop.gremlin.elastic.structure.ElasticGraph;
 import com.tinkerpop.gremlin.elastic.process.graph.traversal.strategy.Geo;
 import com.tinkerpop.gremlin.process.T;
@@ -23,6 +24,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by Eliran on 6/3/2015.
@@ -105,6 +108,31 @@ public class SpatialStepTests {
         assertEquals("1",location.id().toString());
     }
 
+    @Test
+    public void convexhullStep2PolygonConvex() throws IOException {
+
+        List<Point> firstPolygonPoints = new ArrayList<Point>();
+        firstPolygonPoints.add(new PointImpl(2,2, SpatialContext.GEO));
+        firstPolygonPoints.add(new PointImpl(4,2, SpatialContext.GEO));
+        firstPolygonPoints.add(new PointImpl(3,4, SpatialContext.GEO));
+        firstPolygonPoints.add(new PointImpl(2,2, SpatialContext.GEO));
+        Map<String, Object> firstPolygon = buildGeoJsonPolygon(firstPolygonPoints);
+        List<Point> secondPolygonPoints = new ArrayList<Point>();
+        secondPolygonPoints.add(new PointImpl(3, 3, SpatialContext.GEO));
+        secondPolygonPoints.add(new PointImpl(5, 3, SpatialContext.GEO));
+        secondPolygonPoints.add(new PointImpl(4.2, 5, SpatialContext.GEO));
+        secondPolygonPoints.add(new PointImpl(3, 3, SpatialContext.GEO));
+        Map<String, Object> secondPolygon = buildGeoJsonPolygon(secondPolygonPoints);
+
+        //add the vertices to graph
+        graph.addVertex(T.label,DOCUMENT_TYPE,T.id,"1","location",firstPolygon);
+        graph.addVertex(T.label,DOCUMENT_TYPE,T.id,"2","location",secondPolygon);
+
+        Object convexhull = graph.of(SpatialTraversal.class).V().convexHull("location").next();
+        //Object convexhull = ((SpatialTraversal)graph.of(SpatialTraversal.class).V().has(T.label,DOCUMENT_TYPE)).convexHull("location").next();
+        assertTrue("convexhull should be string", convexhull instanceof String);
+        assertEquals("POLYGON ((2 2, 3 4, 4.2 5, 5 3, 4 2, 2 2))",convexhull.toString());
+    }
     private Map<String, Object> buildGeoJsonPolygon(List<Point> points) throws IOException {
         Map<String, Object> json = new HashMap<String, Object>();
         json.put("type","Polygon");
