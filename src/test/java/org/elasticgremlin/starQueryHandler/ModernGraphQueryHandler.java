@@ -1,6 +1,7 @@
 package org.elasticgremlin.starQueryHandler;
 
 import org.apache.commons.configuration.Configuration;
+import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.elasticgremlin.queryhandler.*;
@@ -38,7 +39,9 @@ public class ModernGraphQueryHandler implements QueryHandler {
         elasticMutations = new ElasticMutations(false, client, timing);
         this.docVertexHandler = new DocVertexHandler(graph, client, elasticMutations, indexName, scrollSize, refresh, timing);
         this.starHandler = new StarHandler(graph, client, elasticMutations, indexName, scrollSize, refresh, timing,
-                new BasicEdgeMapping("knows", "person", Direction.OUT, "knows-fk"), new BasicEdgeMapping("created", "software", Direction.OUT, "created-fk"));
+                new BasicEdgeMapping("knows", "person", Direction.OUT, "knows", "knows-"),
+                new BasicEdgeMapping("knows", "person", Direction.OUT, "knows2", "knows2-"),
+                new BasicEdgeMapping("created", "software", Direction.OUT, "created", "created-"));
 
         this.vertexHandlers = new HashMap<>();
         this.vertexHandlers.put(PERSON, starHandler);
@@ -75,16 +78,22 @@ public class ModernGraphQueryHandler implements QueryHandler {
 
     @Override
     public Iterator<Vertex> vertices() {
-        final Iterator<Vertex> starVertices = starHandler.vertices();
-        final Iterator<Vertex> docVertices = docVertexHandler.vertices();
+        Predicates starPredicates = generatePredicates(PERSON);
+        Predicates docPredicates = generatePredicates(SOFTWARE);
+
+        final Iterator<Vertex> starVertices = starHandler.vertices(starPredicates);
+        final Iterator<Vertex> docVertices = docVertexHandler.vertices(docPredicates);
 
         return new ConcatIterator<>(starVertices, docVertices);
     }
 
     @Override
     public Iterator<Vertex> vertices(Object[] vertexIds) {
-        final Iterator<Vertex> starVertices = starHandler.vertices(vertexIds);
-        final Iterator<Vertex> docVertices = docVertexHandler.vertices(vertexIds);
+        Predicates starPredicates = generatePredicates(PERSON, vertexIds);
+        Predicates docPredicates = generatePredicates(SOFTWARE, vertexIds);
+
+        final Iterator<Vertex> starVertices = starHandler.vertices(starPredicates);
+        final Iterator<Vertex> docVertices = docVertexHandler.vertices(docPredicates);
 
         return new ConcatIterator<>(starVertices, docVertices);
     }
@@ -148,6 +157,15 @@ public class ModernGraphQueryHandler implements QueryHandler {
             }
         }
         return null;
+    }
+
+    private Predicates generatePredicates(String label, Object... ids) {
+        Predicates predicates = new Predicates();
+        predicates.hasContainers.add(new HasContainer(T.label.getAccessor(), P.eq(label)));
+        if (ids.length > 0) {
+            predicates.hasContainers.add(new HasContainer(T.id.getAccessor(), P.within(ids)));
+        }
+        return predicates;
     }
 
     private static class ConcatIterator<E> implements Iterator<E> {

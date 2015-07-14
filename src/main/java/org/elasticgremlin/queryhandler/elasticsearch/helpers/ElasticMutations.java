@@ -73,7 +73,7 @@ public class ElasticMutations {
         bulkRequest = client.prepareBulk();
     }
 
-    private Map propertiesMap(Element element) {
+    private Map<String, Object> propertiesMap(Element element) {
         if(element instanceof BaseElement)
             return ((BaseElement)element).allFields();
 
