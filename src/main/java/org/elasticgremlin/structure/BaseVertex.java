@@ -35,11 +35,17 @@ public abstract class BaseVertex extends BaseElement implements Vertex {
     }
 
     public Iterator<Edge> edges(Direction direction, String[] edgeLabels, Predicates predicates) {
+        List<Edge> edges = queriedEdges(direction, edgeLabels, predicates);
+        if (edges != null) return edges.iterator();
+        return graph.getQueryHandler().edges(this, direction, edgeLabels, predicates);
+    }
+
+    protected List<Edge> queriedEdges(Direction direction, String[] edgeLabels, Predicates predicates) {
         List<Edge> edges = queriedEdges.get(new EdgeQueryInfo(direction, edgeLabels, predicates));
         if (edges != null) {
-            return edges.iterator();
+            return edges;
         }
-        return graph.getQueryHandler().edges(this, direction, edgeLabels, predicates);
+        return null;
     }
 
     @Override
@@ -161,7 +167,12 @@ public abstract class BaseVertex extends BaseElement implements Vertex {
 
         public EdgeQueryInfo(Direction direction, String[] edgeLabels, Predicates predicates) {
             this.direction = direction;
-            this.edgeLabels = edgeLabels;
+            if (edgeLabels == null || edgeLabels.length == 0) {
+                this.edgeLabels = null;
+            }
+            else {
+                this.edgeLabels = edgeLabels;
+            }
             this.predicates = predicates;
         }
 

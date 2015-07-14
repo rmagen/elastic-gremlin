@@ -202,10 +202,22 @@ public class ElasticHelper {
                     throw new IllegalArgumentException("predicate not supported in has step: " + predicate.toString());
             }
         } else if (predicate instanceof Contains) {
-            if (predicate == Contains.without) boolFilterBuilder.must(FilterBuilders.missingFilter(key));
+            Iterable valueIter;
+            if (value instanceof Iterable) {
+                valueIter = (Iterable) value;
+            }
+            else {
+                List list = new ArrayList();
+                list.add(value);
+                valueIter = list;
+            }
+            if (predicate == Contains.without) {
+                if (value == null) boolFilterBuilder.must(FilterBuilders.missingFilter(key));
+                else boolFilterBuilder.mustNot(FilterBuilders.termsFilter(key, valueIter));
+            }
             else if (predicate == Contains.within){
                 if(value == null) boolFilterBuilder.must(FilterBuilders.existsFilter(key));
-                else  boolFilterBuilder.must(FilterBuilders.termsFilter (key, value));
+                else boolFilterBuilder.must(FilterBuilders.termsFilter (key, valueIter));
             }
         } else if (predicate instanceof Geo) boolFilterBuilder.must(new GeoShapeFilterBuilder(key, GetShapeBuilder(value), ((Geo) predicate).getRelation()));
         else throw new IllegalArgumentException("predicate not supported by elastic-gremlin: " + predicate.toString());

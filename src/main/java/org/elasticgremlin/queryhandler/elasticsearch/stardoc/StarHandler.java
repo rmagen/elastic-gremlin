@@ -65,8 +65,14 @@ public class StarHandler implements VertexHandler, EdgeHandler {
 
     @Override
     public Iterator<Vertex> vertices(Predicates predicates) {
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
-        return new QueryIterator<>(boolFilter, 0, scrollSize, predicates.limitHigh - predicates.limitLow,
+        FilterBuilder filter;
+        if (predicates.hasContainers.isEmpty()) {
+            filter = FilterBuilders.matchAllFilter();
+        }
+        else {
+            filter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        }
+        return new QueryIterator<>(filter, 0, scrollSize, predicates.limitHigh - predicates.limitLow,
                 client, this::createVertex, refresh, timing, indices);
     }
 
@@ -78,7 +84,7 @@ public class StarHandler implements VertexHandler, EdgeHandler {
     @Override
     public Vertex addVertex(Object id, String label, Object[] properties) {
         String index = getIndex(properties);
-        Vertex v = new StarVertex(id, label, properties, graph, null, elasticMutations, index, edgeMappings);
+        StarVertex v = new StarVertex(id, label, properties, graph, null, elasticMutations, index, edgeMappings);
 
         try {
             elasticMutations.addElement(v, index, null, true);
@@ -105,9 +111,9 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         Iterator<Vertex> vertices = vertices();
         List<Edge> edges = new ArrayList<>();
         vertices.forEachRemaining(vertex -> {
+            // Currently Direction.BOTH doesn't work in StarVertex, so querying IN and OUT individually.
             ((BaseVertex) vertex).edges(Direction.IN, new String[0], predicates).forEachRemaining(edges::add);
             ((BaseVertex) vertex).edges(Direction.OUT, new String[0], predicates).forEachRemaining(edges::add);
-            ((BaseVertex) vertex).edges(Direction.BOTH, new String[0], predicates).forEachRemaining(edges::add);
         });
 
         return edges.iterator();
@@ -119,20 +125,23 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         List<Object> vertexIds = new ArrayList<>(vertices.size());
         vertices.forEach(singleVertex -> vertexIds.add(singleVertex.id()));
 
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        FilterBuilder filter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
         OrFilterBuilder mappingFilter = FilterBuilders.orFilter();
         boolean empty = true;
         for (EdgeMapping mapping : edgeMappings) {
-            if (edgeLabels != null && edgeLabels.length > 0 && !contains(edgeLabels, mapping.getLabel())) continue;
+            if (!isMappingRelevant(mapping, edgeLabels)) continue;
             mappingFilter.add(FilterBuilders.termsFilter(mapping.getExternalVertexField(), vertexIds.toArray()));
             empty = false;
         }
         if (!empty) {
-            boolFilter.must(mappingFilter);
+            ((BoolFilterBuilder)filter).must(mappingFilter);
+        }
+        else if (predicates.hasContainers.isEmpty()) {
+            filter = FilterBuilders.matchAllFilter();
         }
 
-        QueryIterator<Vertex> vertexSearchQuery = new QueryIterator<>(boolFilter, 0, scrollSize,
-                predicates.limitHigh - predicates.limitLow, client, this::createVertex, refresh, timing, indices);
+        QueryIterator<StarVertex> vertexSearchQuery = new QueryIterator<>(filter, 0, scrollSize,
+                predicates.limitHigh - predicates.limitLow, client, this::createStarVertex, refresh, timing, indices);
 
         Iterator<Edge> edgeResults = new EdgeResults(vertexSearchQuery, direction, edgeLabels);
 
@@ -140,6 +149,10 @@ public class StarHandler implements VertexHandler, EdgeHandler {
                 direction, edgeLabels, predicates);
 
         return idToEdges.get(vertex.id()).iterator();
+    }
+
+    private boolean isMappingRelevant(EdgeMapping mapping, String[] edgeLabels) {
+        return edgeLabels == null || edgeLabels.length == 0 || contains(edgeLabels, mapping.getLabel());
     }
 
     public static boolean contains(String[] edgeLabels, String label) {
@@ -154,28 +167,24 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         boolean in = shouldContainEdge(inV, Direction.IN, label, properties);
         StarVertex containerVertex;
         Vertex otherVertex;
-        if (out) {
-            containerVertex = (StarVertex) outV;
-            otherVertex = inV;
-        }
-        else if (in) {
+        if (in) {
             containerVertex = (StarVertex) inV;
             otherVertex = outV;
         }
+        else if (out) {
+            containerVertex = (StarVertex) outV;
+            otherVertex = inV;
+        }
         else {
             // Neither the in nor the out vertices can contain the edge
-            // (Either their mapping is incompatible or they are not of typeStarVertex)
-            return null;
+            // (Either their mapping is incompatible or they are not of type StarVertex)
+            throw new IllegalStateException(
+                    String.format("Neither in nor out vertices can contain the edge, because of type or mapping. " +
+                            "edgeLabel: %s, Ids - inV: %s, outV: %s, edge: %s", label, inV.id(), outV.id(), edgeId));
         }
 
-        List<Object> keyValues = new ArrayList<>();
-        containerVertex.properties().forEachRemaining(property -> {
-            keyValues.add(property.key());
-            keyValues.add(property.value());
-        });
-
         EdgeMapping mapping = getEdgeMapping(label, out ? Direction.OUT : Direction.IN);
-        containerVertex.addInnerEdge(mapping, edgeId, label, otherVertex, keyValues.toArray());
+        containerVertex.addInnerEdge(mapping, edgeId, label, otherVertex, properties);
 
         Predicates predicates = new Predicates();
         predicates.hasContainers.add(new HasContainer(T.id.getAccessor(), P.within(edgeId)));
@@ -246,6 +255,21 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return vertices.iterator();
     }
 
+    private Iterator<StarVertex> createStarVertex(Iterator<SearchHit> hits) {
+        Iterator<Vertex> vertices = createVertex(hits);
+        return new Iterator<StarVertex>() {
+            @Override
+            public boolean hasNext() {
+                return vertices.hasNext();
+            }
+
+            @Override
+            public StarVertex next() {
+                return (StarVertex) vertices.next();
+            }
+        };
+    }
+
     private boolean equals(EdgeMapping mapping, EdgeMapping otherMapping) {
         return mapping.getDirection().equals(otherMapping.getDirection()) &&
                 mapping.getLabel().equals(otherMapping.getLabel()) &&
@@ -257,11 +281,11 @@ public class StarHandler implements VertexHandler, EdgeHandler {
 
         public Iterator<Edge> edges;
 
-        private Iterator<Vertex> vertexSearchQuery;
+        private Iterator<StarVertex> vertexSearchQuery;
         private Direction direction;
         private String[] edgeLabels;
 
-        public EdgeResults(Iterator<Vertex> vertexSearchQuery, Direction direction, String... edgeLabels) {
+        public EdgeResults(Iterator<StarVertex> vertexSearchQuery, Direction direction, String... edgeLabels) {
             this.vertexSearchQuery = vertexSearchQuery;
             this.direction = direction;
             this.edgeLabels = edgeLabels;
@@ -269,14 +293,26 @@ public class StarHandler implements VertexHandler, EdgeHandler {
 
         @Override
         public boolean hasNext() {
-            return (edges != null && edges.hasNext()) || vertexSearchQuery.hasNext();
+            return (edges != null && edges.hasNext()) || tryGetMoreEdges();
         }
 
         @Override
         public Edge next() {
-            if (edges == null || !edges.hasNext())
-                edges = vertexSearchQuery.next().edges(direction.opposite(), edgeLabels);
+            if (edges == null || !edges.hasNext()) {
+                tryGetMoreEdges();
+            }
             return edges.next();
+        }
+
+        protected boolean tryGetMoreEdges() {
+            List<Edge> newEdges = new ArrayList<>();
+            while ((edges == null || !edges.hasNext()) && vertexSearchQuery.hasNext()) {
+                StarVertex next = vertexSearchQuery.next();
+                // Return only vertex's INNER edges
+                next.addInnerEdgesToList(direction.opposite(), edgeLabels, new Predicates(), newEdges);
+                edges = newEdges.iterator();
+            }
+            return edges.hasNext();
         }
     }
 }

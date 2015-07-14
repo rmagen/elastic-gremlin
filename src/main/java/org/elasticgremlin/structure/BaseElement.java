@@ -5,7 +5,7 @@ import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 
 import java.util.*;
 
-public abstract class BaseElement implements Element{
+public abstract class BaseElement implements Element {
     protected HashMap<String, Property> properties = new HashMap<>();
     protected final Object id;
     protected String label;
@@ -16,17 +16,7 @@ public abstract class BaseElement implements Element{
         this.graph = graph;
         this.id = id != null ? id : new com.eaio.uuid.UUID().toString();
         this.label = label;
-        if(keyValues != null) ElementHelper.legalPropertyKeyValueArray(keyValues);
-
-        if (keyValues != null) {
-            if(keyValues.length % 2 == 1) throw Element.Exceptions.providedKeyValuesMustBeAMultipleOfTwo();
-            for (int i = 0; i < keyValues.length; i = i + 2) {
-                String key = keyValues[i].toString();
-                Object value = keyValues[i + 1];
-
-                addPropertyLocal(key, value);
-            }
-        }
+        validateAndAddKeyValues(keyValues);
 
     }
 
@@ -35,7 +25,7 @@ public abstract class BaseElement implements Element{
         if (shouldAddProperty(key)) {
             ElementHelper.validateProperty(key, value);
             Property property = createProperty(key, value);
-            properties.put(key, property);
+            if (property != null) properties.put(property.key(), property);
             return property;
         }
         return null;
@@ -87,6 +77,19 @@ public abstract class BaseElement implements Element{
         return properties.values().iterator();
     }
 
+    protected void validateAndAddKeyValues(Object[] keyValues) {
+        if(keyValues != null) ElementHelper.legalPropertyKeyValueArray(keyValues);
+
+        if (keyValues != null) {
+            if(keyValues.length % 2 == 1) throw Exceptions.providedKeyValuesMustBeAMultipleOfTwo();
+            for (int i = 0; i < keyValues.length; i = i + 2) {
+                String key = keyValues[i].toString();
+                Object value = keyValues[i + 1];
+
+                addPropertyLocal(key, value);
+            }
+        }
+    }
 
     public void removeProperty(Property property) {
         properties.remove(property.key());
