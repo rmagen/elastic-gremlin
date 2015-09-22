@@ -5,11 +5,9 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
 import org.elasticgremlin.queryhandler.elasticsearch.Geo;
 import org.elasticsearch.action.admin.cluster.health.*;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.*;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.*;
@@ -64,23 +62,10 @@ public class ElasticHelper {
      * @param indexName the index name to be cleared.
      * @return Deleted by query response.
      */
-    public static DeleteByQueryResponse clearIndex(Client client, String indexName){
-        DeleteByQueryRequestBuilder deleteByQueryBuilder = new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE);
-        DeleteByQueryResponse indexDeleteByQueryResponses = deleteByQueryBuilder.setIndices(indexName)
-                .setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-
-        GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings(indexName).execute().actionGet();
-        ArrayList<String> mappings = new ArrayList();
-        getMappingsResponse.getMappings().forEach(map -> {
-            map.value.forEach(map2 -> mappings.add(map2.value.type()));
-        });
-
-        //ES 2.0 does not allow deletion of mappings. Please see https://github.com/elastic/elasticsearch/issues/12167
-//        if(mappings.size() > 0) {
-//            DeleteMappingResponse deleteMappingResponse = client.admin().indices().prepareDeleteMapping(indexName).setType(mappings.toArray(new String[mappings.size()])).execute().actionGet();
-//        }
-
-        return indexDeleteByQueryResponses;
+    public static DeleteIndexResponse clearIndex(Client client, String indexName){
+        return client.admin().indices()
+                .delete(new DeleteIndexRequest(indexName))
+                .actionGet();
     }
 
     /**
