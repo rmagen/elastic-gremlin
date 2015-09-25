@@ -64,6 +64,7 @@ public class ElasticMutations {
         timing.start("bulk");
         bulkRequest.execute().actionGet();
         timing.stop("bulk");
+        bulkRequest = client.prepareBulk();
     }
 
     public int getRevision() {
