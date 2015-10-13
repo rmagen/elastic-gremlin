@@ -5,11 +5,35 @@ import org.apache.tinkerpop.gremlin.structure.util.*;
 
 import java.util.*;
 
+/**
+ * The base implementation of the edge.
+ */
 public abstract class BaseEdge extends BaseElement implements Edge {
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Fields
+    /**
+     * The in-vertex, where the edge directs to.
+     */
     protected Vertex inVertex;
+
+    /**
+     * The out-vertex, where the edge originates from.
+     */
     protected Vertex outVertex;
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Constructors
+
+    /**
+     * Constructs the base edge.
+     * @param id the id.
+     * @param label the label.
+     * @param keyValues the key-value pair properties.
+     * @param outVertex the out-vertex, where the edge originates from.
+     * @param inVertex the in-vertex, where the edge directs to.
+     * @param graph the graph.
+     */
     public BaseEdge(final Object id, final String label, Object[] keyValues, Vertex outVertex, Vertex inVertex, final ElasticGraph graph) {
         super(id, label, graph, keyValues);
         this.outVertex = outVertex;
@@ -17,6 +41,8 @@ public abstract class BaseEdge extends BaseElement implements Edge {
         ElementHelper.validateLabel(label);
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Methods
     @Override
     public  Property createProperty(String key, Object value) {
         return new BaseProperty<>(this, key, value);
@@ -42,6 +68,10 @@ public abstract class BaseEdge extends BaseElement implements Edge {
         return vertices.iterator();
     }
 
+    /**
+     * TBA
+     * @param vertexProperty the vertex property.
+     */
     protected abstract void innerAddProperty(BaseProperty vertexProperty);
 
     @Override

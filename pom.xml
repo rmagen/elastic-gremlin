@@ -6,7 +6,7 @@
     <version>0.1.0</version>
     <properties>
         <tinkerpop.version>3.0.0-incubating</tinkerpop.version>
-        <elasticsearch.version>2.0.0-beta1</elasticsearch.version>
+        <elasticsearch.version>2.0.0-rc1</elasticsearch.version>
     </properties>
     <dependencies>
         <dependency>

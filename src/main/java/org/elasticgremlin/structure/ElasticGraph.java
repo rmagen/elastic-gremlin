@@ -11,6 +11,9 @@ import org.elasticgremlin.queryhandler.SimpleQueryHandler;
 
 import java.util.*;
 
+/**
+ * The elasticsearch graph implementing Tinkerpop 3 {@link Graph} interface.
+ */
 @Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.FeatureSupportTest$VertexPropertyFunctionalityTest", method = "shouldSupportNumericIdsIfNumericIdsAreGeneratedFromTheGraph",
         reason = "need to handle ids in VertexProperties")
 @Graph.OptOut(test = "org.apache.tinkerpop.gremlin.structure.GraphTest", method = "shouldHaveExceptionConsistencyWhenFindVertexByIdThatIsNonExistentViaIterator",
@@ -48,19 +51,57 @@ import java.util.*;
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
 public class ElasticGraph implements Graph {
+
+    /**
+     * Register elastic graph with elastic optimization traversal strategy.
+     */
     static {
-        TraversalStrategies.GlobalCache.registerStrategies(ElasticGraph.class, TraversalStrategies.GlobalCache.getStrategies(Graph.class).clone().addStrategies(ElasticOptimizationStrategy.instance()));
+        TraversalStrategies.GlobalCache.registerStrategies(ElasticGraph.class,
+                TraversalStrategies
+                        .GlobalCache
+                        .getStrategies(Graph.class)
+                        .clone()
+                        .addStrategies(ElasticOptimizationStrategy.instance()));
     }
 
-    //for testSuite
+    /**
+     * For test suite only.
+     *
+     * @param configuration the configuration
+     * @return Elastic graph
+     * @throws InstantiationException if error occur during instantiation
+     */
     public static ElasticGraph open(final Configuration configuration) throws InstantiationException {
         return new ElasticGraph(configuration);
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Fields
+
+    /**
+     * The graph features for elastic graph.
+     */
     private ElasticFeatures features = new ElasticFeatures();
+
+    /**
+     * The graph configuration.
+     */
     private final Configuration configuration;
+
+    /**
+     * The query handler.
+     */
     private QueryHandler queryHandler;
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Constructors
+
+    /**
+     * Constructs elastic graph.
+     *
+     * @param configuration the configuration.
+     * @throws InstantiationException if error occurs during instantiation.
+     */
     public ElasticGraph(Configuration configuration) throws InstantiationException {
         try {
             configuration.setProperty(Graph.GRAPH, ElasticGraph.class.getName());
@@ -76,10 +117,21 @@ public class ElasticGraph implements Graph {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Methods
+
+    /**
+     * Gets the query handler.
+     *
+     * @return query handler.
+     */
     public QueryHandler getQueryHandler() {
         return queryHandler;
     }
 
+    /**
+     * Commits the query (one or more graph changes).
+     */
     public void commit() { queryHandler.commit(); }
 
     @Override
