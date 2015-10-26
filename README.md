@@ -1,3 +1,5 @@
+**Notice:** This project has migrated over to [Unipop](https://github.com/rmagen/unipop)
+
 # elastic-gremlin
 
 [TinkerPop 3](http://tinkerpop.incubator.apache.org/docs/3.0.0-SNAPSHOT/) implementation on Elasticsearch backend. You should read up on Tinkerpop before you use elastic-gremlin.
