@@ -5,13 +5,50 @@ import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 
 import java.util.*;
 
+/**
+ * The base elastic-gremlin implementation of the Tinkerpop {@link Element} interface.
+ * This is the base class for both {@link BaseVertex} and {@link BaseEdge}.
+ */
 public abstract class BaseElement implements Element{
+
+    ////////////////////////////////////////////////////////////////////////////
+    /// Fields
+    /**
+     * Properties of the element.
+     */
     protected HashMap<String, Property> properties = new HashMap<>();
+
+    /**
+     * Element Id.
+     */
     protected final Object id;
+
+    /**
+     * Element label.
+     */
     protected String label;
+
+    /**
+     * Graph the element belongs to.
+     */
     protected final ElasticGraph graph;
+
+    /**
+     * Removed flag.
+     */
     protected boolean removed = false;
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Constructors
+
+    /**
+     * Constructs the element.
+     *
+     * @param id the element Id.
+     * @param label the element label.
+     * @param graph the graph.
+     * @param keyValues the property key-value pairs.
+     */
     public BaseElement(final Object id, final String label, ElasticGraph graph, Object[] keyValues) {
         this.graph = graph;
         this.id = id != null ? id.toString() : new com.eaio.uuid.UUID().toString();
@@ -30,6 +67,16 @@ public abstract class BaseElement implements Element{
 
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Methods
+
+    /**
+     * Adds the property to the local properties map.
+     *
+     * @param key the key.
+     * @param value the value.
+     * @return the property.
+     */
     public Property addPropertyLocal(String key, Object value) {
         checkRemoved();
         if (shouldAddProperty(key)) {
@@ -78,31 +125,68 @@ public abstract class BaseElement implements Element{
         return ElementHelper.areEqual(this, object);
     }
 
+    /**
+     * Gets the iterator of inner property by property keys.
+     *
+     * @param propertyKeys the property keys.
+     * @return the iterator.
+     */
     protected Iterator innerPropertyIterator(String[] propertyKeys) {
         HashMap<String, Property> properties = (HashMap<String, Property>) this.properties.clone();
 
         if (propertyKeys.length > 0)
-            return properties.entrySet().stream().filter(entry -> ElementHelper.keyExists(entry.getKey(), propertyKeys)).map(x -> x.getValue()).iterator();
+            return properties.entrySet().stream()
+                    .filter(entry -> ElementHelper.keyExists(entry.getKey(), propertyKeys))
+                    .map(Map.Entry::getValue)
+                    .iterator();
 
         return properties.values().iterator();
     }
 
-
+    /**
+     * Removes a property.
+     *
+     * @param property the property to be removed.
+     */
     public void removeProperty(Property property) {
         properties.remove(property.key());
         this.innerRemoveProperty(property);
     }
 
+    /**
+     * Removes inner property.
+     *
+     * @param property the inner property to be removed.
+     */
     protected abstract void innerRemoveProperty(Property property);
 
+    /**
+     * Creates a property based on the input key and value.
+     *
+     * @param key the key.
+     * @param value the value.
+     * @return the property created.
+     */
     protected abstract Property createProperty(String key, Object value);
 
+    /**
+     * Determines whether the property with certain key can be added or not.
+     *
+     * @param key the key to be checked against.
+     * @return true if the key is neither label nor id else false.
+     */
     protected boolean shouldAddProperty(String key) {
         return !key.equals("label") && !key.equals("id");
     }
 
+    /**
+     * Checks whether the element is removed or not.
+     */
     protected abstract void checkRemoved();
 
+    /**
+     * Removes inner property.
+     */
     protected abstract void innerRemove();
 
     @Override
@@ -112,12 +196,22 @@ public abstract class BaseElement implements Element{
         this.removed = true;
     }
 
+    /**
+     * Copies of all the properties in a new map.
+     *
+     * @return the new map copy.
+     */
     public Map<String, Object> allFields() {
         Map<String, Object> map = new HashMap<>();
         properties.forEach((key, value) -> map.put(key, value.value()));
         return map;
     }
 
+    /**
+     * Sets the label.
+     *
+     * @param label the element label.
+     */
     public void setLabel(String label) {
         this.label = label;
     }

@@ -12,18 +12,74 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.*;
 
+/**
+ * The handler for handling document as a vertex.
+ */
 public class DocVertexHandler implements VertexHandler {
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Fields
+    /**
+     * The elastic graph.
+     */
     private ElasticGraph graph;
+
+    /**
+     * The client.
+     */
     private Client client;
+
+    /**
+     * The elastic mutations.
+     */
     private ElasticMutations elasticMutations;
+
+    /**
+     * The index name.
+     */
     private String indexName;
+
+    /**
+     * The scroll size.
+     */
     private final int scrollSize;
+
+    /**
+     * The refresh flag.
+     */
     private final boolean refresh;
+
+    /**
+     * The timing accessor.
+     */
     private TimingAccessor timing;
+
+    /**
+     * The lazy getters.
+     */
     private Map<Direction, LazyGetter> lazyGetters;
+
+    /**
+     * The default lazy getter.
+     */
     private LazyGetter defaultLazyGetter;
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Constructors
+
+    /**
+     * Constructs DocVertexHandler.
+     *
+     * @param graph the graph.
+     * @param client the client.
+     * @param elasticMutations the elastic mutations.
+     * @param indexName the index name.
+     * @param scrollSize the scroll size.
+     * @param refresh the refresh flag.
+     * @param timing the timing accessor.
+     */
     public DocVertexHandler(ElasticGraph graph, Client client, ElasticMutations elasticMutations, String indexName,
                             int scrollSize, boolean refresh, TimingAccessor timing) {
         this.graph = graph;
@@ -36,9 +92,13 @@ public class DocVertexHandler implements VertexHandler {
         this.lazyGetters = new HashMap<>();
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Methods
+
     @Override
     public Iterator<Vertex> vertices() {
-        return new QueryIterator<>(FilterBuilders.missingFilter(DocEdge.InId), 0, scrollSize,
+        return new QueryIterator<>(QueryBuilders.missingQuery(DocEdge.InId), 0, scrollSize,
                 Integer.MAX_VALUE, client, this::createVertex, refresh, timing, indexName);
     }
 
@@ -55,8 +115,8 @@ public class DocVertexHandler implements VertexHandler {
 
     @Override
     public Iterator<Vertex> vertices(Predicates predicates) {
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
-        boolFilter.must(FilterBuilders.missingFilter(DocEdge.InId));
+        BoolQueryBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        boolFilter.must(QueryBuilders.missingQuery(DocEdge.InId));
         return new QueryIterator<>(boolFilter, 0, scrollSize, predicates.limitHigh - predicates.limitLow,
                 client, this::createVertex, refresh, timing, indexName);
     }
@@ -78,6 +138,11 @@ public class DocVertexHandler implements VertexHandler {
         return v;
     }
 
+    /**
+     * Gets lazy getter.
+     *
+     * @return lazy getter
+     */
     private LazyGetter getLazyGetter() {
         if (defaultLazyGetter == null || !defaultLazyGetter.canRegister()) {
             defaultLazyGetter = new LazyGetter(client, timing);
@@ -85,6 +150,12 @@ public class DocVertexHandler implements VertexHandler {
         return defaultLazyGetter;
     }
 
+    /**
+     * Gets lazy getter.
+     *
+     * @param direction the direction.
+     * @return lazy getter.
+     */
     private LazyGetter getLazyGetter(Direction direction) {
         LazyGetter lazyGetter = lazyGetters.get(direction);
         if (lazyGetter == null || !lazyGetter.canRegister()) {
@@ -95,6 +166,12 @@ public class DocVertexHandler implements VertexHandler {
         return lazyGetter;
     }
 
+    /**
+     * Creates vertex.
+     *
+     * @param hits search hit result.
+     * @return iterator of vertex created.
+     */
     private Iterator<? extends Vertex> createVertex(Iterator<SearchHit> hits) {
         ArrayList<BaseVertex> vertices = new ArrayList<>();
         hits.forEachRemaining(hit -> {

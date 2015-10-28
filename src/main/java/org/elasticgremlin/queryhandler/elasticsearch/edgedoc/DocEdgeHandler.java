@@ -9,20 +9,69 @@ import org.elasticgremlin.structure.*;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.*;
 
+/**
+ * The handler for handling document as an edge.
+ */
 public class DocEdgeHandler implements EdgeHandler {
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Fields
+    /**
+     * The elastic graph.
+     */
     private ElasticGraph graph;
+
+    /**
+     * The client.
+     */
     private final Client client;
+
+    /**
+     * The elastic mutations.
+     */
     private final ElasticMutations elasticMutations;
+
+    /**
+     * The index name.
+     */
     private final String indexName;
+
+    /**
+     * The scroll size.
+     */
     private final int scrollSize;
+
+    /**
+     * The refresh flag.
+     */
     private final boolean refresh;
+
+    /**
+     * The timing accessor.
+     */
     private TimingAccessor timing;
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Constructors
+
+    /**
+     * Constructs DocEdgeHandler.
+     *
+     * @param graph the graph.
+     * @param client the client.
+     * @param elasticMutations the elastic mutations.
+     * @param indexName the index name.
+     * @param scrollSize the scroll size.
+     * @param refresh the refresh flag.
+     * @param timing the timing accessor.
+     */
     public DocEdgeHandler(ElasticGraph graph, Client client, ElasticMutations elasticMutations, String indexName,
                           int scrollSize, boolean refresh, TimingAccessor timing) {
         this.graph = graph;
@@ -34,9 +83,13 @@ public class DocEdgeHandler implements EdgeHandler {
         this.timing = timing;
     }
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Methods
+
     @Override
     public Iterator<Edge> edges() {
-        return new QueryIterator<>(FilterBuilders.existsFilter(DocEdge.InId), 0, scrollSize, Integer.MAX_VALUE,
+        return new QueryIterator<>(QueryBuilders.existsQuery(DocEdge.InId), 0, scrollSize, Integer.MAX_VALUE,
                 client, this::createEdge, refresh, timing, indexName);
     }
 
@@ -57,8 +110,8 @@ public class DocEdgeHandler implements EdgeHandler {
 
     @Override
     public Iterator<Edge> edges(Predicates predicates) {
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
-        boolFilter.must(FilterBuilders.existsFilter(DocEdge.InId));
+        BoolQueryBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        boolFilter.must(QueryBuilders.existsQuery(DocEdge.InId));
         return new QueryIterator<>(boolFilter, 0, scrollSize, predicates.limitHigh - predicates.limitLow,
                 client, this::createEdge, refresh, timing, indexName);
     }
@@ -72,15 +125,15 @@ public class DocEdgeHandler implements EdgeHandler {
             predicates.hasContainers.add(new HasContainer(T.label.getAccessor(), P.within(edgeLabels)));
 
         Object[] vertexIds = idToVertex.keySet().toArray();
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        BoolQueryBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
         if (direction == Direction.IN)
-            boolFilter.must(FilterBuilders.termsFilter(DocEdge.InId, vertexIds));
+            boolFilter.must(QueryBuilders.termsQuery(DocEdge.InId, vertexIds));
         else if (direction == Direction.OUT)
-            boolFilter.must(FilterBuilders.termsFilter(DocEdge.OutId, vertexIds));
+            boolFilter.must(QueryBuilders.termsQuery(DocEdge.OutId, vertexIds));
         else if (direction == Direction.BOTH)
-            boolFilter.must(FilterBuilders.orFilter(
-                    FilterBuilders.termsFilter(DocEdge.InId, vertexIds),
-                    FilterBuilders.termsFilter(DocEdge.OutId, vertexIds)));
+            boolFilter.must(QueryBuilders.orQuery(
+                    QueryBuilders.termsQuery(DocEdge.InId, vertexIds),
+                    QueryBuilders.termsQuery(DocEdge.OutId, vertexIds)));
 
         QueryIterator<Edge> edgeQueryIterator = new QueryIterator<>(boolFilter, 0, scrollSize, predicates.limitHigh - predicates.limitLow, client, this::createEdge , refresh, timing, indexName);
 
@@ -109,6 +162,12 @@ public class DocEdgeHandler implements EdgeHandler {
         return elasticEdge;
     }
 
+    /**
+     * Creates the edge.
+     *
+     * @param hits search hits.
+     * @return iterator of edge created.
+     */
     private Iterator<Edge> createEdge(Iterator<SearchHit> hits) {
         ArrayList<Edge> edges = new ArrayList<>();
         hits.forEachRemaining(hit -> {
@@ -122,6 +181,12 @@ public class DocEdgeHandler implements EdgeHandler {
         return edges.iterator();
     }
 
+    /**
+     * Creates the edge.
+     *
+     * @param hit a hit.
+     * @return the edge
+     */
     private Edge createEdge(GetResponse hit) {
         Map<String, Object> fields = hit.getSource();
         BaseVertex outVertex = graph.getQueryHandler().vertex(fields.get(DocEdge.OutId), fields.get(DocEdge.OutLabel).toString(), null, Direction.OUT);

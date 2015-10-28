@@ -3,11 +3,32 @@ package org.elasticgremlin.structure;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 
+/**
+ * The elastic graph features. Represents the capabilities of elastic graph implementation.
+ */
 public class ElasticFeatures implements Graph.Features {
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Fields
+
+    /**
+     * Vertex features.
+     */
     ElasticVertexFeatures elasticVertexFeatures = new ElasticVertexFeatures();
+
+    /**
+     * Edge features.
+     */
     ElasticEdgeFeatures elasticEdgeFeatures = new ElasticEdgeFeatures();
+
+    /**
+     * Graph features.
+     */
     ElasticGraphFeatures elasticGraphFeatures = new ElasticGraphFeatures();
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    /// Methods
 
     @Override
     public String toString() {
@@ -29,7 +50,14 @@ public class ElasticFeatures implements Graph.Features {
         return elasticGraphFeatures;
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    /// Inner classes
+
+    /**
+     * Features specific to operations of a graph.
+     */
     private class ElasticGraphFeatures implements GraphFeatures {
+
         ElasticVariableFeatures elasticVariableFeatures = new ElasticVariableFeatures();
 
         @Override
@@ -53,6 +81,10 @@ public class ElasticFeatures implements Graph.Features {
         }
     }
 
+    /**
+     * Graph variables are a set of key/value pairs associated with the graph.
+     * The keys are String and the values are Objects.
+     */
     private class ElasticVariableFeatures implements VariableFeatures {
         @Override
         public boolean supportsVariables() {
@@ -150,6 +182,9 @@ public class ElasticFeatures implements Graph.Features {
         }
     }
 
+    /**
+     * Features that are related to Edge operation.
+     */
     private class ElasticEdgeFeatures implements EdgeFeatures {
         @Override
         public boolean supportsNumericIds() {
@@ -177,7 +212,11 @@ public class ElasticFeatures implements Graph.Features {
         }
     }
 
+    /**
+     * Features that are related to Vertex operation.
+     */
     private class ElasticVertexFeatures implements VertexFeatures {
+
         ElasticVertexPropertyFeatures elasticVertexPropertyFeatures = new ElasticVertexPropertyFeatures();
 
         @Override
@@ -221,6 +260,9 @@ public class ElasticFeatures implements Graph.Features {
         }
     }
 
+    /**
+     * Features that are related to VertexProperty objects.
+     */
     private class ElasticVertexPropertyFeatures implements VertexPropertyFeatures {
         @Override
         public boolean supportsUserSuppliedIds() {

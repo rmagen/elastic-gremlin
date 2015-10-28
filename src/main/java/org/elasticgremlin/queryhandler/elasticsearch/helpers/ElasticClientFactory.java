@@ -7,15 +7,48 @@ import org.elasticsearch.common.settings.*;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.*;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
+/**
+ * The elastic client factory.
+ */
 public class ElasticClientFactory {
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Inner classes
+
+    /**
+     * Client type class.
+     */
     public static class ClientType {
+        /**
+         * Transport client.
+         */
         public static String TRANSPORT_CLIENT = "TRANSPORT_CLIENT";
+
+        /**
+         * Node client.
+         */
         public static String NODE_CLIENT = "NODE_CLIENT";
+
+        /**
+         * Node.
+         */
         public static String NODE = "NODE";
     }
 
-    public static Client create(Configuration configuration) {
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Methods
+    /**
+     * Creates the client from the configuration.
+     *
+     * @param configuration the configuration.
+     * @return the client.
+     */
+    public static Client create(Configuration configuration) throws UnknownHostException {
         String clientType = configuration.getString("elasticsearch.client", ClientType.NODE);
         String clusterName = configuration.getString("elasticsearch.cluster.name", "elasticsearch");
 
@@ -27,7 +60,7 @@ public class ElasticClientFactory {
                 String address = addresses[i];
                 String[] split = address.split(":");
                 if(split.length != 2) throw new IllegalArgumentException("Address invalid:" + address +  ". Should contain ip and port, e.g. 127.0.0.1:9300");
-                inetSocketTransportAddresses[i] = new InetSocketTransportAddress(split[0], Integer.parseInt(split[1]));
+                inetSocketTransportAddresses[i] = new InetSocketTransportAddress(InetAddress.getByName(split[0]), Integer.parseInt(split[1]));
             }
             return createTransportClient(clusterName, inetSocketTransportAddresses);
         }
@@ -37,18 +70,34 @@ public class ElasticClientFactory {
         }
     }
 
+    /**
+     * Creates transport client.
+     *
+     * @param clusterName the elasticsearch cluster name.
+     * @param addresses the addresses of the clusters.
+     * @return the transport client.
+     */
     public static TransportClient createTransportClient(String clusterName, InetSocketTransportAddress... addresses) {
-        Settings settings = ImmutableSettings.settingsBuilder()
+        Settings settings = Settings.settingsBuilder()
                 .put("cluster.name", clusterName)
                 .put("client.transport.sniff", true).build();
-        TransportClient transportClient = new TransportClient(settings).addTransportAddresses(addresses);
+        TransportClient transportClient = TransportClient.builder().settings(settings).build().addTransportAddresses(addresses);
         return transportClient;
     }
 
+    /**
+     * Creates a elasticsearch node.
+     *
+     * @param clusterName the elasticsearch cluster name.
+     * @param client the client.
+     * @param port the port node listens to.
+     * @return a new node.
+     */
     public static Node createNode(String clusterName, boolean client, int port) {
-        Settings settings = NodeBuilder.nodeBuilder().settings()
+        Settings settings = Settings.settingsBuilder()
                 .put("script.groovy.sandbox.enabled", true)
-                .put("script.disable_dynamic", false)
+                .put("script.inline", "on")
+                .put("script.indexed", "on")
                 .put("transport.tcp.port", port).build();
         Node node = NodeBuilder.nodeBuilder().client(client).data(!client).clusterName(clusterName).settings(settings).build();
         node.start();

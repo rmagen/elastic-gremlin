@@ -13,25 +13,97 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.*;
 
+/**
+ * The document handler for handling a star graph.
+ */
 public class StarHandler implements VertexHandler, EdgeHandler {
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Fields
+    /**
+     * The elastic graph.
+     */
     private ElasticGraph graph;
+
+    /**
+     * The client.
+     */
     private Client client;
+
+    /**
+     * The elastic mutations.
+     */
     private ElasticMutations elasticMutations;
+
+    /**
+     * The scroll size.
+     */
     private final int scrollSize;
+
+    /**
+     * The refresh.
+     */
     private final boolean refresh;
+
+    /**
+     * The timing accessor.
+     */
     private TimingAccessor timing;
+
+    /**
+     * The edge mapping.
+     */
     private EdgeMapping[] edgeMappings;
+
+    /**
+     * The lazy getters.
+     */
     private Map<Direction, LazyGetter> lazyGetters;
+
+    /**
+     * The default lazy getter.
+     */
     private LazyGetter defaultLazyGetter;
 
+    /**
+     * The indices.
+     */
     protected String[] indices;
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Constructors
+
+    /**
+     * Constructs star graph handler.
+     *
+     * @param graph the graph.
+     * @param client the client.
+     * @param elasticMutations the elastic mutations
+     * @param indexName the index name.
+     * @param scrollSize the scroll size.
+     * @param refresh the refresh flag.
+     * @param timing the timing accessor.
+     * @param edgeMappings the edge mappings
+     */
     public StarHandler(ElasticGraph graph, Client client, ElasticMutations elasticMutations, String indexName,
                        int scrollSize, boolean refresh, TimingAccessor timing, EdgeMapping... edgeMappings) {
         this(graph, client, elasticMutations, new String[] {indexName}, scrollSize, refresh, timing, edgeMappings);
     }
 
+    /**
+     * Constructs star graph handler.
+     *
+     * @param graph the graph.
+     * @param client the client.
+     * @param elasticMutations the elastic mutations
+     * @param indices the indices.
+     * @param scrollSize the scroll size.
+     * @param refresh the refresh flag.
+     * @param timing the timing accessor.
+     * @param edgeMappings the edge mappings
+     */
     public StarHandler(ElasticGraph graph, Client client, ElasticMutations elasticMutations, String[] indices,
                        int scrollSize, boolean refresh, TimingAccessor timing, EdgeMapping... edgeMappings) {
         this.graph = graph;
@@ -44,6 +116,10 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         this.edgeMappings = edgeMappings;
         this.lazyGetters = new HashMap<>();
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Methods
 
     @Override
     public Iterator<? extends Vertex> vertices() {
@@ -64,7 +140,7 @@ public class StarHandler implements VertexHandler, EdgeHandler {
 
     @Override
     public Iterator<? extends Vertex> vertices(Predicates predicates) {
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        BoolQueryBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
         return new QueryIterator<>(boolFilter, 0, scrollSize, predicates.limitHigh - predicates.limitLow,
                 client, this::createVertex, refresh, timing, indices);
     }
@@ -119,12 +195,12 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         List<Object> vertexIds = new ArrayList<>();
         vertices.forEachRemaining(singleVertex -> vertexIds.add(singleVertex.id()));
 
-        BoolFilterBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
-        OrFilterBuilder mappingFilter = FilterBuilders.orFilter();
+        BoolQueryBuilder boolFilter = ElasticHelper.createFilterBuilder(predicates.hasContainers);
+        OrQueryBuilder mappingFilter = QueryBuilders.orQuery();
         boolean empty = true;
         for (EdgeMapping mapping : edgeMappings) {
             if (edgeLabels != null && edgeLabels.length > 0 && !contains(edgeLabels, mapping.getLabel())) continue;
-            mappingFilter.add(FilterBuilders.termsFilter(mapping.getExternalVertexField(), vertexIds.toArray()));
+            mappingFilter.add(QueryBuilders.termsQuery(mapping.getExternalVertexField(), vertexIds.toArray()));
             empty = false;
         }
         if (!empty) {
@@ -150,6 +226,13 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return results;
     }
 
+    /**
+     * Checks whether the edge labels contains specific label.
+     *
+     * @param edgeLabels the edge labels list.
+     * @param label the label to check.
+     * @return the result as boolean value.
+     */
     public static boolean contains(String[] edgeLabels, String label) {
         for (String edgeLabel : edgeLabels)
             if (edgeLabel.equals(label)) return true;
@@ -190,6 +273,13 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return containerVertex.edges(mapping.getDirection(), new String[]{label}, predicates).next();
     }
 
+    /**
+     * Gets edge mapping.
+     *
+     * @param label the label of the mapping.
+     * @param direction the direction of the edge.
+     * @return the edge mapping.
+     */
     private EdgeMapping getEdgeMapping(String label, Direction direction) {
         for (EdgeMapping mapping : edgeMappings) {
             if (mapping.getLabel().equals(label) && mapping.getDirection().equals(direction)) {
@@ -199,6 +289,15 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return null;
     }
 
+    /**
+     * Checks for the edge that should be contained.
+     *
+     * @param vertex the vertex to start from.
+     * @param direction the direction of the edge.
+     * @param edgeLabel the edge label to check.
+     * @param edgeProperties the edge properties to check.
+     * @return the result in boolean value.
+     */
     private boolean shouldContainEdge(Vertex vertex, Direction direction, String edgeLabel, Object[] edgeProperties) {
         if (!StarVertex.class.isAssignableFrom(vertex.getClass())) {
             return false;
@@ -218,14 +317,30 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return false;
     }
 
+    /**
+     * Gets default index.
+     *
+     * @return the default index.
+     */
     protected String getDefaultIndex() {
         return this.indices[0];
     }
 
+    /**
+     * Gets index.
+     *
+     * @param properties the properties of the index.
+     * @return the index.
+     */
     protected String getIndex(Object[] properties) {
         return getDefaultIndex();
     }
 
+    /**
+     * Gets the lazy getter.
+     *
+     * @return Lazy getter.
+     */
     private LazyGetter getLazyGetter() {
         if (defaultLazyGetter == null || !defaultLazyGetter.canRegister()) {
             defaultLazyGetter = new LazyGetter(client, timing);
@@ -233,6 +348,12 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return defaultLazyGetter;
     }
 
+    /**
+     * Gets lazy getter.
+     *
+     * @param direction the direction.
+     * @return lazy getter.
+     */
     private LazyGetter getLazyGetter(Direction direction) {
         LazyGetter lazyGetter = lazyGetters.get(direction);
         if (lazyGetter == null || !lazyGetter.canRegister()) {
@@ -243,6 +364,12 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return lazyGetter;
     }
 
+    /**
+     * Creates vertex.
+     *
+     * @param hits search hits
+     * @return iterator of the vertices created.
+     */
     private Iterator<? extends Vertex> createVertex(Iterator<SearchHit> hits) {
         ArrayList<BaseVertex> vertices = new ArrayList<>();
         hits.forEachRemaining(hit -> {
@@ -254,6 +381,13 @@ public class StarHandler implements VertexHandler, EdgeHandler {
         return vertices.iterator();
     }
 
+    /**
+     * Equality check.
+     *
+     * @param mapping the first edge mapping.
+     * @param otherMapping the second edge mapping.
+     * @return result of the comparison in boolean value.
+     */
     private boolean equals(EdgeMapping mapping, EdgeMapping otherMapping) {
         return mapping.getDirection().equals(otherMapping.getDirection()) &&
                 mapping.getLabel().equals(otherMapping.getLabel()) &&

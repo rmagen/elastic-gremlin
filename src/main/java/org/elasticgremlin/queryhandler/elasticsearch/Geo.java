@@ -2,19 +2,25 @@ package org.elasticgremlin.queryhandler.elasticsearch;
 
 import com.spatial4j.core.shape.*;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.json.JSONObject;
+import com.google.common.base.Preconditions;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.function.*;
 
+/**
+ * Geo ENUM class.
+ */
 public enum Geo implements BiPredicate {
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Fields
     /**
      * Whether the intersection between two geographic regions is non-empty
      */
@@ -35,17 +41,41 @@ public enum Geo implements BiPredicate {
      */
     WITHIN(ShapeRelation.WITHIN, (geometry1, geometry2) -> geometry1.relate(geometry2) == SpatialRelation.WITHIN);
 
+    /**
+     * The shape relation.
+     */
     private ShapeRelation relation;
+
+    /**
+     * The test function for the shape.
+     */
     private BiFunction<Shape, Shape, Boolean> testFunc;
 
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Constructors
+
+    /**
+     * Constructs Geo.
+     *
+     * @param relation the relation.
+     * @param testFunc the shape test function.
+     */
     Geo(ShapeRelation relation, BiFunction<Shape, Shape, Boolean> testFunc) {
 
         this.relation = relation;
         this.testFunc = testFunc;
     }
 
-    ;
 
+    ////////////////////////////////////////////////////////////////////////////
+    // Methods
+
+    /**
+     * Gets the relation.
+     *
+     * @return the shape relation.
+     */
     public ShapeRelation getRelation() {
         return relation;
     }
@@ -65,6 +95,13 @@ public enum Geo implements BiPredicate {
         return testFunc.apply(s1,s2);
     }
 
+    /**
+     * Converts object to shape if applicable.
+     *
+     * @param o the object to convert.
+     * @return the shape.
+     * @throws IOException if error occurs during conversion.
+     */
     private Shape convertObjectToShapeIfPossible(Object o) throws IOException {
 
         if(o instanceof Shape) return (Shape) o;
@@ -86,10 +123,9 @@ public enum Geo implements BiPredicate {
 
     }
 
-
-    public static <V> P<V> intersercts(final V value) { return new P(Geo.INTERSECTS, value); };
-    public static <V> P<V> disjoint(final V value) { return new P(Geo.DISJOINT, value); };
-    public static <V> P<V> within(final V value) { return new P(Geo.WITHIN, value); };
+    public static <V> P<V> intersercts(final V value) { return new P(Geo.INTERSECTS, value); }
+    public static <V> P<V> disjoint(final V value) { return new P(Geo.DISJOINT, value); }
+    public static <V> P<V> within(final V value) { return new P(Geo.WITHIN, value); }
 }
 
 
